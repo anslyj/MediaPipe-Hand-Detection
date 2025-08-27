@@ -1,11 +1,27 @@
-# Virtual environment
+cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
 rps-ai-venv/
+.venv/
 venv/
 env/
-.env .vscode/
-.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS/editor
+.DS_Store
 *.swp
-*.swoDS_Store
-Thumbs.db
-*.mp4
-*.avi
+.vscode/
+.idea/
+
+# Logs
+*.log
+EOF
