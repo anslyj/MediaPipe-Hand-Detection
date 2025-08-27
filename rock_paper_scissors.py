@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass
 import time
 from typing import Optional, Tuple, List
+from enum import Enum
 
 # Map for move indices to names
 MOVES = {0: "rock", 1: "paper", 2: "scissors"}
@@ -16,9 +17,19 @@ WIN_MAP = {
     ("paper", "rock"): "you",
 }
 
+class GameScreen(Enum):
+    HOME = "home"
+    COUNTDOWN = "countdown"
+    REVEAL = "reveal"
+    RESULT = "result"
+
 
 @dataclass
 class GameState:
+    current_screen: GameScreen = GameScreen.HOME
+    countdown_value: int = 3
+    countdown_start_time: float = 0.0
+
     """Tracks the current game state and scores"""
     score_you: int = 0
     score_ai: int = 0
@@ -142,7 +153,49 @@ def ai_move() -> str:
 def decide_winner(you: str, ai: str) -> str:
     if you == ai:
         return "draw"
+    elif you == "unknown":
+        return "oops didn't quite catch that"
     return "you" if WIN_MAP.get((you, ai)) == "you" else "ai"
+
+def start_countdown(state: GameState):
+    state.current_screen = GameScreen.COUNTDOWN
+    state.countdown_value = 3
+    state.countdown_start_time = time.time()
+    state.your_move = None
+    state.ai_move = None
+    state.result = None
+
+def update_countdown(state: GameState) -> bool:
+    elapsed = time.time() - state.countdown_start_time
+    state.countdown_value = max(0, 3 - int(elapsed))
+
+    if elapsed >= 3.0:
+        if state.current_guess:
+            state.your_move = state.current_guess
+        else:
+            state.your_move = "unknown"
+        state.ai_move = ai_move()
+        state.result = decide_winner(state.your_move, state.ai_move)
+
+        if state.result == "you":
+            state.score_you += 1
+        elif state.result == "ai":
+            state.score_ai += 1
+        
+        state.current_screen = GameScreen.REVEAL
+        return True
+    return False
+
+def go_to_result(state: GameState):
+    state.current_screen = GameScreen.RESULT
+
+def go_home(state: GameState):
+    state.current_screen = GameScreen.HOME
+
+def reset_scores(state: GameState):
+    state.score_you = 0
+    state.score_ai = 0
+        
 
 def main():
     cap = cv2.VideoCapture(0)
