@@ -195,7 +195,32 @@ def go_home(state: GameState):
 def reset_scores(state: GameState):
     state.score_you = 0
     state.score_ai = 0
-        
+
+def draw_home_screen(frame, state: GameState):
+    h, w = frame.shape[:2]
+    
+    # Background
+    cv2.rectangle(frame, (0, 0), (w, h), (50, 50, 50), -1)
+    
+    # Title
+    title = "ROCK PAPER SCISSORS"
+    title_size = cv2.getTextSize(title, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 3)[0]
+    title_x = (w - title_size[0]) // 2
+    cv2.putText(frame, title, (title_x, h//2 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
+    
+    # Play button
+    button_text = "Click SPACE to Play"
+    button_size = cv2.getTextSize(button_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+    button_x = (w - button_size[0]) // 2
+    cv2.putText(frame, button_text, (button_x, h//2 + 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+    
+    # Scores
+    score_text = f"Score: You {state.score_you} - {state.score_ai} AI"
+    score_size = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+    score_x = (w - score_size[0]) // 2
+    cv2.putText(frame, score_text, (score_x, h//2 + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+
+
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -210,43 +235,59 @@ def main():
                 break
 
             frame = cv2.flip(frame, 1)
+            h, w = frame.shape[:2]
 
-            landmarks = detect_landmarks(hands, frame)
-            temp_guess = None
+            # Handle different screens
+            if state.current_screen == GameScreen.HOME:
+                draw_home_screen(frame, state)
+                
+            elif state.current_screen == GameScreen.COUNTDOWN:
+                # Detect hand during countdown
+                landmarks = detect_landmarks(hands, frame)
+                temp_guess = None
+                if landmarks is not None:
+                    fingers = finger_states(landmarks)
+                    temp_guess = classify_gesture(fingers)
+                
+                # Update stabilization
+                update_stable_choice(state, temp_guess)
+                
+                # Draw countdown
+                #draw_countdown_screen(frame, state)
+                #draw_game_overlay(frame, state, landmarks, temp_guess)
+                
+                # Update countdown
+                if update_countdown(state):
+                    # Countdown complete, wait a moment then show result
+                    time.sleep(1.0)
+                    go_to_result(state)
+                
+           # elif state.current_screen == GameScreen.REVEAL:
+               # draw_reveal_screen(frame, state)
+                
+           # elif state.current_screen == GameScreen.RESULT:
+               # draw_result_screen(frame, state)
 
-            if landmarks is not None:
-                fingers = finger_states(landmarks)
-                temp_guess = classify_gesture(fingers)
+            cv2.imshow("RPS AI Game", frame)
 
-            locked = update_stable_choice(state, temp_guess)
-
-            if locked is not None:
-                state.last_locked_gesture = locked
-                state.last_ai_move = ai_move()
-                state.last_result = decide_winner(state.last_locked_gesture, state.last_ai_move)
-                if state.last_result == "you":
-                    state.score_you += 1
-                elif state.last_result == "ai":
-                    state.score_ai += 1
-                # Reset stability to avoid double triggers
-                state.current_guess = None
-                state.stable_since_ms = 0
-
-            draw_overlay(frame, state, landmarks, temp_guess)
-            draw_help(frame)
-
-            cv2.imshow("RPS AI", frame)
-
+            # Handle input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break
-            if key == ord('r'):
-                state = GameState()
+            elif key == ord(' '):  # Spacebar
+                if state.current_screen == GameScreen.HOME:
+                    start_countdown(state)
+                elif state.current_screen == GameScreen.REVEAL:
+                    go_to_result(state)
+                elif state.current_screen == GameScreen.RESULT:
+                    start_countdown(state)
+            elif key == ord('r') and state.current_screen == GameScreen.RESULT:
+                reset_scores(state)
+            elif key == ord('h') and state.current_screen == GameScreen.RESULT:
+                go_home(state)
 
     cap.release()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
-
-
