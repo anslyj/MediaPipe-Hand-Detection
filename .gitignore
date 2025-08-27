@@ -2,25 +2,10 @@
 rps-ai-venv/
 venv/
 env/
-.env
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-
-# IDE files
-.vscode/
+.env .vscode/
 .idea/
 *.swp
-*.swo
-
-# OS files
-.DS_Store
+*.swoDS_Store
 Thumbs.db
-
-# Project specific
 *.mp4
 *.avi
