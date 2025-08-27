@@ -6,9 +6,10 @@ from dataclasses import dataclass
 import time
 from typing import Optional, Tuple, List
 
-
+# Map for move indices to names
 MOVES = {0: "rock", 1: "paper", 2: "scissors"}
-#helps decide the winner
+
+# Win conditions mapping - defines when player wins
 WIN_MAP = {
     ("rock", "scissors"): "you",
     ("scissors", "paper"): "you",
@@ -18,30 +19,51 @@ WIN_MAP = {
 
 @dataclass
 class GameState:
+    """Tracks the current game state and scores"""
     score_you: int = 0
     score_ai: int = 0
     last_locked_gesture: Optional[str] = None
     last_ai_move: Optional[str] = None
     last_result: Optional[str] = None
-    # Stabilization
+    
+    # Gesture stabilization parameters
     current_guess: Optional[str] = None
     stable_since_ms: float = 0.0
-    lock_ms: int = 700  # may have to change later
+    lock_ms: int = 700  # Time to hold gesture before locking (may adjust later)
+
 
 #mediapipe 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
 
-def finger_states(landmarks: List[Tuple[int, int]]) -> List[bool]:
-    tips = [4, 8, 12, 16, 20]
-    pips = [3, 6, 10, 14, 18]
+def detect_landmarks(hands, frame_bgr) -> Optional[List[Tuple[int, int]]]:
+    # Returns the first hand's 21 (x, y) pixel landmarks or None
+    
+    h, w = frame_bgr.shape[:2]
+    rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    res = hands.process(rgb)
+    if not res.multi_hand_landmarks:
+        return None
+    # For simplicity: use the first detected hand
+    handLms = res.multi_hand_landmarks[0]
+    pts = [(int(p.x * w), int(p.y * h)) for p in handLms.landmark]
+    return pts
 
+
+def finger_states(landmarks: List[Tuple[int, int]]) -> List[bool]:
+    # Landmark indices for fingertips and joint positions
+    tips = [4, 8, 12, 16, 20]  # Fingertip landmarks
+    pips = [3, 6, 10, 14, 18]  # PIP joint landmarks
+    
+    # Special handling for thumb (horizontal extension)
     thumb_tip, thumb_ip, index_mcp = landmarks[4], landmarks[3], landmarks[5]
     thumb_extended = abs(thumb_tip[0] - index_mcp[0]) > abs(thumb_ip[0] - index_mcp[0]) + 8
-
+    
+    # Check other fingers (vertical extension - tip above pip joint)
     fingers = [thumb_extended]
     for tip, pip in zip(tips[1:], pips[1:]):
         fingers.append(landmarks[pip][1] - landmarks[tip][1] > 15)  # tip higher than pip
+    
     return fingers
 
 def classify_gesture(fingers: List[bool]) -> str:
@@ -59,30 +81,6 @@ def classify_gesture(fingers: List[bool]) -> str:
     if idx and mid:
         return "scissors"
     return "rock"
-
-
-
-# makes the ai's choice might change later
-def ai_move() -> str:
-    return random.choice(list(MOVES.values()))
-#this decides the winner
-def decide_winner(you: str, ai: str) -> str:
-    if you == ai:
-        return "draw"
-    return "you" if WIN_MAP.get((you, ai)) == "you" else "ai"
-
-def detect_landmarks(hands, frame_bgr) -> Optional[List[Tuple[int, int]]]:
-    # Returns the first hand's 21 (x, y) pixel landmarks or None
-    frame = cv2.flip(frame_bgr, 1)
-    h, w = frame.shape[:2]
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    res = hands.process(rgb)
-    if not res.multi_hand_landmarks:
-        return None
-    # For simplicity: use the first detected hand
-    handLms = res.multi_hand_landmarks[0]
-    pts = [(int(p.x * w), int(p.y * h)) for p in handLms.landmark]
-    return pts
 
 def update_stable_choice(state: GameState, guess: Optional[str]) -> Optional[str]:
     """
@@ -135,6 +133,16 @@ def draw_help(frame):
     for line in reversed(help_lines):
         cv2.putText(frame, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (240, 240, 240), 1)
         y -= 22
+
+
+# makes the ai's choice might change later
+def ai_move() -> str:
+    return random.choice(list(MOVES.values()))
+#this decides the winner
+def decide_winner(you: str, ai: str) -> str:
+    if you == ai:
+        return "draw"
+    return "you" if WIN_MAP.get((you, ai)) == "you" else "ai"
 
 def main():
     cap = cv2.VideoCapture(0)
