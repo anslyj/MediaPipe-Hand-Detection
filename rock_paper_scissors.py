@@ -15,12 +15,18 @@ WIN_MAP = {
     ("paper", "rock"): "you",
 }
 
+
 @dataclass
 class GameState:
-    user_score: int = 0
-    ai_score: int = 0
+    score_you: int = 0
+    score_ai: int = 0
+    last_locked_gesture: Optional[str] = None
+    last_ai_move: Optional[str] = None
+    last_result: Optional[str] = None
+    # Stabilization
+    current_guess: Optional[str] = None
     stable_since_ms: float = 0.0
-    lock_ms: int = 700 #may have to tune
+    lock_ms: int = 700  # may have to change later
 
 #mediapipe 
 mp_hands = mp.solutions.hands
@@ -38,7 +44,7 @@ def finger_states(landmarks: List[Tuple[int, int]]) -> List[bool]:
         fingers.append(landmarks[pip][1] - landmarks[tip][1] > 15)  # tip higher than pip
     return fingers
 
-def classifying_gesture(fingers: List[bool]) -> str:
+def classify_gesture(fingers: List[bool]) -> str:
     thumb, idx, mid, ring, pink = fingers
     count = sum(fingers)
 
@@ -78,6 +84,57 @@ def detect_landmarks(hands, frame_bgr) -> Optional[List[Tuple[int, int]]]:
     pts = [(int(p.x * w), int(p.y * h)) for p in handLms.landmark]
     return pts
 
+def update_stable_choice(state: GameState, guess: Optional[str]) -> Optional[str]:
+    """
+    Returns locked gesture if stabilized long enough; otherwise None.
+    - Keep the same guess for lock_ms before returning it as locked.
+    """
+    now_ms = time.time() * 1000
+    if guess is None:
+        state.current_guess = None
+        state.stable_since_ms = 0
+        return None
+
+    if guess != state.current_guess:
+        state.current_guess = guess
+        state.stable_since_ms = now_ms
+        return None
+
+    if now_ms - state.stable_since_ms >= state.lock_ms:
+        return state.current_guess
+
+    return None
+
+def draw_overlay(frame, state: GameState, landmarks: Optional[List[Tuple[int, int]]], temp_guess: Optional[str]):
+    h, w = frame.shape[:2]
+    # Background bar
+    cv2.rectangle(frame, (0, 0), (w, 80), (0, 0, 0), -1)
+
+    # Status text
+    status = "Show a gesture"
+    if temp_guess:
+        status = f"Holding: {temp_guess}"
+    if state.last_locked_gesture:
+        status = f"Locked: {state.last_locked_gesture} | AI: {state.last_ai_move} | Result: {state.last_result}"
+
+    cv2.putText(frame, status, (12, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+    cv2.putText(frame, f"You {state.score_you} : {state.score_ai} AI", (12, 64), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (180, 255, 180), 2)
+
+    # Draw landmarks if present
+    if landmarks is not None:
+        for (x, y) in landmarks:
+            cv2.circle(frame, (x, y), 3, (0, 255, 255), -1)
+
+def draw_help(frame):
+    h, w = frame.shape[:2]
+    help_lines = [
+        "Controls: q=quit, r=reset scores",
+        "Tips: center your hand, good lighting",
+    ]
+    y = h - 10
+    for line in reversed(help_lines):
+        cv2.putText(frame, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (240, 240, 240), 1)
+        y -= 22
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -104,7 +161,7 @@ def main():
 
             if locked is not None:
                 state.last_locked_gesture = locked
-                state.last_ai_move = ai_move_simple()
+                state.last_ai_move = ai_move()
                 state.last_result = decide_winner(state.last_locked_gesture, state.last_ai_move)
                 if state.last_result == "you":
                     state.score_you += 1
