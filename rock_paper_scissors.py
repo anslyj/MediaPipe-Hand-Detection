@@ -220,6 +220,108 @@ def draw_home_screen(frame, state: GameState):
     score_x = (w - score_size[0]) // 2
     cv2.putText(frame, score_text, (score_x, h//2 + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
 
+def draw_countdown_screen(frame, state: GameState):
+    h, w = frame.shape[:2]
+    
+    # Background
+    cv2.rectangle(frame, (0, 0), (w, h), (30, 30, 30), -1)
+    
+    # Countdown number
+    count_text = str(state.countdown_value)
+    count_size = cv2.getTextSize(count_text, cv2.FONT_HERSHEY_SIMPLEX, 4.0, 5)[0]
+    count_x = (w - count_size[0]) // 2
+    count_y = (h + count_size[1]) // 2
+    cv2.putText(frame, count_text, (count_x, count_y), cv2.FONT_HERSHEY_SIMPLEX, 4.0, (255, 255, 255), 5)
+    
+    # Instructions
+    if state.countdown_value > 0:
+        instruction = "Get ready!"
+    else:
+        instruction = "REVEAL!"
+    
+    inst_size = cv2.getTextSize(instruction, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 2)[0]
+    inst_x = (w - inst_size[0]) // 2
+    cv2.putText(frame, instruction, (inst_x, h - 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 2)
+
+def draw_reveal_screen(frame, state: GameState):
+    h, w = frame.shape[:2]
+    
+    # Background
+    cv2.rectangle(frame, (0, 0), (w, h), (40, 40, 40), -1)
+    
+    # Your move
+    your_text = f"Your move: {state.your_move.upper()}"
+    your_size = cv2.getTextSize(your_text, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 2)[0]
+    your_x = (w - your_size[0]) // 2
+    cv2.putText(frame, your_text, (your_x, h//2 - 80), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+    
+    # AI move
+    ai_text = f"AI move: {state.ai_move.upper()}"
+    ai_size = cv2.getTextSize(ai_text, cv2.FONT_HERSHEY_SIMPLEX, 1.2, 2)[0]
+    ai_x = (w - ai_size[0]) // 2
+    cv2.putText(frame, ai_text, (ai_x, h//2 - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 0, 0), 2)
+    
+    # Result
+    result_text = f"Result: {state.result.upper()}"
+    result_size = cv2.getTextSize(result_text, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 3)[0]
+    result_x = (w - result_size[0]) // 2
+    cv2.putText(frame, result_text, (result_x, h//2 + 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3)
+    
+    # Auto-advance instruction
+    advance_text = "Press SPACE to continue"
+    advance_size = cv2.getTextSize(advance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+    advance_x = (w - advance_size[0]) // 2
+    cv2.putText(frame, advance_text, (advance_x, h - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+
+def draw_result_screen(frame, state: GameState):
+    h, w = frame.shape[:2]
+    
+    # Background
+    cv2.rectangle(frame, (0, 0), (w, h), (50, 50, 50), -1)
+    
+    # Final result
+    result_text = f"Result: {state.result.upper()}"
+    result_size = cv2.getTextSize(result_text, cv2.FONT_HERSHEY_SIMPLEX, 1.5, 3)[0]
+    result_x = (w - result_size[0]) // 2
+    cv2.putText(frame, result_text, (result_x, h//2 - 80), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3)
+    
+    # Scores
+    score_text = f"Score: You {state.score_you} - {state.score_ai} AI"
+    score_size = cv2.getTextSize(score_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+    score_x = (w - score_size[0]) // 2
+    cv2.putText(frame, score_text, (score_x, h//2 - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (200, 200, 200), 2)
+    
+    # Buttons
+    buttons = [
+        ("SPACE - Play Again", (0, 255, 0)),
+        ("R - Reset Scores", (255, 165, 0)),
+        ("H - Back Home", (255, 255, 0)),
+        ("Q - Quit", (255, 100, 0))
+    ]
+    
+    for i, (text, color) in enumerate(buttons):
+        y_pos = h//2 + 50 + i * 40
+        cv2.putText(frame, text, (w//2 - 100, y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+def draw_game_overlay(frame, state: GameState, landmarks: Optional[List[Tuple[int, int]]], temp_guess: Optional[str]):
+    """Draw overlay during countdown phase"""
+    h, w = frame.shape[:2]
+    
+    # Background bar
+    cv2.rectangle(frame, (0, 0), (w, 60), (0, 0, 0), -1)
+    
+    # Status text
+    if temp_guess:
+        status = f"Detected: {temp_guess}"
+    else:
+        status = "Show your hand"
+    
+    cv2.putText(frame, status, (12, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    
+    # Draw landmarks if present
+    if landmarks is not None:
+        for (x, y) in landmarks:
+            cv2.circle(frame, (x, y), 3, (0, 255, 255), -1)
 
 
 def main():
@@ -253,8 +355,8 @@ def main():
                 update_stable_choice(state, temp_guess)
                 
                 # Draw countdown
-                #draw_countdown_screen(frame, state)
-                #draw_game_overlay(frame, state, landmarks, temp_guess)
+                draw_countdown_screen(frame, state)
+                draw_game_overlay(frame, state, landmarks, temp_guess)
                 
                 # Update countdown
                 if update_countdown(state):
@@ -262,11 +364,11 @@ def main():
                     time.sleep(1.0)
                     go_to_result(state)
                 
-           # elif state.current_screen == GameScreen.REVEAL:
-               # draw_reveal_screen(frame, state)
+            elif state.current_screen == GameScreen.REVEAL:
+                draw_reveal_screen(frame, state)
                 
-           # elif state.current_screen == GameScreen.RESULT:
-               # draw_result_screen(frame, state)
+            elif state.current_screen == GameScreen.RESULT:
+                draw_result_screen(frame, state)
 
             cv2.imshow("RPS AI Game", frame)
 
